@@ -34,6 +34,13 @@ const comparePassword = (password, storedPassword) => {
   return password === storedPassword;
 };
 
+const updateUserPassword = async (db, email, newPassword) => {
+  const result = await db
+    .collection("users")
+    .updateOne({ email }, { $set: { password: newPassword } });
+  return result;
+};
+
 app.post("/register", async (req, res) => {
   try {
     const db = await connectToDatabase();
@@ -88,6 +95,51 @@ app.post("/login", async (req, res) => {
 
     // Başarılı giriş mesajı gönder ve kullanıcının tüm bilgilerini döndür
     res.json({ message: "Başarıyla giriş yapıldı", user });
+
+    db.client.close();
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post("/forgotpassword", async (req, res) => {
+  try {
+    const db = await connectToDatabase();
+
+    const { firstname, lastname, birthdate, email, newPassword } = req.body;
+    console.log(
+      firstname +
+        " " +
+        lastname +
+        " " +
+        birthdate +
+        " " +
+        email +
+        " " +
+        newPassword
+    );
+
+    // Kullanıcıyı e-posta adresine göre ve diğer verilere göre bul
+    const user = await db
+      .collection("users")
+      .findOne({ firstname, lastname, birthdate, email });
+
+    // Kullanıcı bulunamazsa hata mesajı gönder
+    if (!user) {
+      return res
+        .status(400)
+        .json({ message: "Doğrulama başarısız. Bilgileri kontrol edin." });
+    }
+
+    // Şifreyi güncelle
+    const updateResult = await updateUserPassword(db, email, newPassword);
+
+    // Güncelleme başarılı değilse hata mesajı gönder
+    if (updateResult.modifiedCount !== 1) {
+      return res.status(500).json({ message: "Şifre güncelleme hatası." });
+    }
+
+    res.json({ message: "Şifreniz başarıyla güncellendi." });
 
     db.client.close();
   } catch (error) {
